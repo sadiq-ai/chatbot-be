@@ -1,0 +1,4 @@
+.env
+*.wav
+*base64.txt
+node_modules

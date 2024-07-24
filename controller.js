@@ -63,7 +63,7 @@ async function addVoiceMessage(req, res) {
 
       // Print the response.
       console.log("user:", user_request.response.text());
-      user_request = user_request.response.text();
+      user_request = user_request.response.text().trim();
     } else {
       user_request = text;
     }
@@ -103,6 +103,7 @@ async function addVoiceMessage(req, res) {
     const body = {
       status: "success",
       message: "Audio file received",
+      user: user_request,
       data: chatbot_response.response.text(),
     };
     return res.send(body);

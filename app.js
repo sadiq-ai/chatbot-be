@@ -1,10 +1,10 @@
 // Load Enviroment
 require("dotenv").config();
+// require("./init_mongo");
 const express = require("express");
 const cors = require("cors");
 const os = require("os");
 const bodyParser = require("body-parser");
-
 // Controllers
 const controller = require("./controller");
 
@@ -27,5 +27,6 @@ for (let interface in networkInterfaces) {
   }
 }
 
-app.use("/talk-to-ai", controller.addVoiceMessage);
+app.get("/", (req, res) => res.send("Hello World"));
+app.post("/talk-to-ai", controller.addVoiceMessage);
 app.listen(PORT, () => console.log("Server running on " + ip_address + ":" + PORT));

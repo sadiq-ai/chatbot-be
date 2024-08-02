@@ -2,3 +2,4 @@
 *.wav
 *base64.txt
 node_modules
+all_products.json

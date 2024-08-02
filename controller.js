@@ -1,4 +1,5 @@
 const fs = require("fs");
+const productData = require("./all_products.json");
 const { GoogleAIFileManager } = require("@google/generative-ai/server");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
@@ -10,6 +11,19 @@ const model = genAI.getGenerativeModel({
   systemInstruction:
     "You are a helpful human shopping assistant, your job is to help user find what they are looking for, keep the conversation as natural as you can, ask questions to fill out missing variables, provide your recommendations from internet as well like any sales person would do. Keep the tone human like, slightly engaging, but professional.",
 });
+
+// Fill out data for the product attributes
+const all_prod_strings = productData.map((prod) => {
+  let prod_string = "";
+  for (let key in prod) {
+    prod_string += `${prod[key]} `;
+  }
+  return {
+    id: prod._id,
+    text: prod_string,
+  };
+});
+console.log("Products trained", all_prod_strings.length);
 
 // Define the intent keywords that will be used to recognize user intents
 let intents = {
@@ -29,7 +43,7 @@ let intents = {
   usage: null,
 };
 
-const chat_history = [];
+let chat_history = [];
 
 async function addVoiceMessage(req, res) {
   try {
@@ -71,6 +85,22 @@ async function addVoiceMessage(req, res) {
     chat_history.push({ user: user_request });
 
     const chat_history_context = fetchChatHistory(chat_history);
+
+    // Check and tally if user has switched the product, or is asking for a new product, if so reset the intents
+    const reset_chat = await model.generateContent(
+      'According to the chat history and the last text from user, has user switched the product or asking for a new product? return "yes" or "no". chat_history: ' +
+        chat_history_context
+    );
+
+    console.log("reset_chat:", reset_chat.response.text());
+    if (reset_chat.response.text().trim() == "yes") {
+      // Clear chat history and intents
+      chat_history = [{ user: user_request }];
+      for (let key in intents) {
+        intents[key] = null;
+      }
+    }
+
     // Convert the product intent to a string
     const prod_attributes = JSON.stringify(intents);
     // Generate content using the user request and the chat history.
@@ -100,11 +130,38 @@ async function addVoiceMessage(req, res) {
     );
     intents = JSON.parse(jsonString);
 
+    const product_search = [];
+    // Now check the query in the product data if any word matches, add it to the product_search
+    for (let i = 0; i < all_prod_strings.length; i++) {
+      const prod = all_prod_strings[i];
+      // Iterate through the product attributes, intents
+      let count = 0;
+      for (let key in intents) {
+        if (intents[key]) {
+          const value = intents[key].toLowerCase();
+          // Count the number of values that match the product string
+          if (prod.text.toLowerCase().includes(value)) {
+            count++;
+          }
+        }
+      }
+      // If the count is greater than 1, add the product to the search
+      if (count > 1) {
+        product_search.push({ _id: prod.id, product_text: prod.text, score: count });
+      }
+    }
+    console.log("Product search:", product_search.length);
+    // Sort the product search by the score
+    product_search.sort((a, b) => b.score - a.score).slice(0, 1);
+    let search_results;
+    if (product_search && product_search[0]) search_results = fetchProductDetails(product_search[0]._id);
+
     const body = {
       status: "success",
       message: "Audio file received",
       user: user_request,
       data: chatbot_response.response.text(),
+      product_search: search_results ?? [],
     };
     return res.send(body);
   } catch (err) {
@@ -125,6 +182,10 @@ function fetchChatHistory(chat_history) {
       }
     })
     .join("\n"));
+}
+
+function fetchProductDetails(id) {
+  return productData.filter((prod) => prod._id == id);
 }
 
 module.exports = {

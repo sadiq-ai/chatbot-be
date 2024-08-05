@@ -4,6 +4,8 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const os = require("os");
+const fs = require("fs");
+const https = require("https");
 const bodyParser = require("body-parser");
 // Controllers
 const controller = require("./controller");
@@ -27,6 +29,15 @@ for (let interface in networkInterfaces) {
   }
 }
 
-app.get("/", (req, res) => res.send("Hello World"));
+app.get("/test", (req, res) => res.send("Hello World"));
 app.post("/talk-to-ai", controller.addVoiceMessage);
-app.listen(PORT, () => console.log("Server running on " + ip_address + ":" + PORT));
+
+// Add https config
+const config = {
+  key: fs.readFileSync("/home/sadiq_server/domain_ssl_rsa.key"),
+  cert: fs.readFileSync("/home/sadiq_server/domain_ssl.cert"),
+};
+
+https.createServer(config, app).listen(PORT, () => {
+  console.log("HTTPS Server running on " + ip_address + ":" + PORT);
+});

@@ -105,7 +105,7 @@ async function addVoiceMessage(req, res) {
           status: "success",
           message: "Audio file received",
           user: user_request,
-          data: `Product added to cart on ${Date.toLocaleString()} successfully. Please proceed to checkout to place the order.`,
+          data: `Product added to cart on ${Date().toLocaleString()} successfully. Please proceed to checkout to place the order.`,
           product_search: [],
         };
       } else if (finalize.response.text().trim() == "order") {
@@ -113,7 +113,7 @@ async function addVoiceMessage(req, res) {
           status: "success",
           message: "Audio file received",
           user: user_request,
-          data: `Order placed on ${Date.toLocaleString()} successfully for the product you've selected. Thank you for shopping with us.`,
+          data: `Order placed on ${Date().toLocaleString()} successfully for the product you've selected. Thank you for shopping with us.`,
           product_search: [],
         };
       }

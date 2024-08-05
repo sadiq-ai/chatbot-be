@@ -44,6 +44,7 @@ let intents = {
 };
 
 let chat_history = [];
+let product_search = [];
 
 async function addVoiceMessage(req, res) {
   try {
@@ -85,6 +86,39 @@ async function addVoiceMessage(req, res) {
     chat_history.push({ user: user_request });
 
     const chat_history_context = fetchChatHistory(chat_history);
+
+    // Check if User is finalizing the product
+    const finalize = await model.generateContent(
+      'According to the chat history and the last text from user, is user finalizing the product and asking to add this to cart or place order on it? return "cart" or "order" or "no". chat_history: ' +
+        chat_history_context
+    );
+    console.log("finalize:", finalize.response.text());
+    if (finalize.response.text().trim() != "no" && product_search.length > 0) {
+      // Clear chat history and intents
+      chat_history = [];
+      for (let key in intents) {
+        intents[key] = null;
+      }
+      let body = {};
+      if (finalize.response.text().trim() == "cart") {
+        body = {
+          status: "success",
+          message: "Audio file received",
+          user: user_request,
+          data: `Product added to cart on ${Date.toLocaleString()} successfully. Please proceed to checkout to place the order.`,
+          product_search: [],
+        };
+      } else if (finalize.response.text().trim() == "order") {
+        body = {
+          status: "success",
+          message: "Audio file received",
+          user: user_request,
+          data: `Order placed on ${Date.toLocaleString()} successfully for the product you've selected. Thank you for shopping with us.`,
+          product_search: [],
+        };
+      }
+      return res.send(body);
+    }
 
     // Check and tally if user has switched the product, or is asking for a new product, if so reset the intents
     const reset_chat = await model.generateContent(
@@ -130,7 +164,7 @@ async function addVoiceMessage(req, res) {
     );
     intents = JSON.parse(jsonString);
 
-    const product_search = [];
+    product_search = [];
     // Now check the query in the product data if any word matches, add it to the product_search
     for (let i = 0; i < all_prod_strings.length; i++) {
       const prod = all_prod_strings[i];
@@ -138,7 +172,7 @@ async function addVoiceMessage(req, res) {
       let count = 0;
       for (let key in intents) {
         if (intents[key]) {
-          const value = intents[key].toLowerCase();
+          const value = intents[key].toString().toLowerCase();
           // Count the number of values that match the product string
           if (prod.text.toLowerCase().includes(value)) {
             count++;

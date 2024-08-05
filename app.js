@@ -32,12 +32,13 @@ for (let interface in networkInterfaces) {
 app.get("/test", (req, res) => res.send("Hello World"));
 app.post("/talk-to-ai", controller.addVoiceMessage);
 
-// Add https config
-const config = {
-  key: fs.readFileSync("/home/sadiq_server/domain_ssl_rsa.key"),
-  cert: fs.readFileSync("/home/sadiq_server/domain_ssl.cert"),
-};
+app.listen(PORT, () => console.log("Server running on " + ip_address + ":" + PORT));
 
-https.createServer(config, app).listen(PORT, () => {
-  console.log("HTTPS Server running on " + ip_address + ":" + PORT);
-});
+// Add https config
+// const config = {
+//   key: fs.readFileSync("/home/sadiq_server/domain_ssl_rsa.key"),
+//   cert: fs.readFileSync("/home/sadiq_server/domain_ssl.cert"),
+// };
+// https.createServer(config, app).listen(PORT, () => {
+//   console.log("HTTPS Server running on " + ip_address + ":" + PORT);
+// });

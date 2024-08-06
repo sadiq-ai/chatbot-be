@@ -52,6 +52,8 @@ async function addVoiceMessage(req, res) {
 
     let file_metadata;
     let user_request;
+
+    // Audio file recieved
     if (base64) {
       // Convert base64 to audio file and save it audio_prompt.wav
       let audioFile = Buffer.from(base64, "base64");
@@ -67,7 +69,7 @@ async function addVoiceMessage(req, res) {
         },
       };
 
-      // Generate content using a prompt and the metadata of the uploaded file.
+      // Translate and Transcribe the uploaded audio file.
       user_request = await model.generateContent([
         file_metadata,
         {
@@ -76,21 +78,21 @@ async function addVoiceMessage(req, res) {
       ]);
       console.log("User content generated");
 
-      // Print the response.
-      console.log("user:", user_request.response.text());
       user_request = user_request.response.text().trim();
     } else {
       user_request = text;
     }
-
+    console.log("user:", user_request);
     chat_history.push({ user: user_request });
 
-    const chat_history_context = fetchChatHistory(chat_history);
+    // Fetch the chat history context in text format
+    let chat_history_context = fetchChatHistory(chat_history);
+    // Convert the product intent to a string
+    let prod_attributes = JSON.stringify(intents);
 
     // Check if User is finalizing the product
     const finalize = await model.generateContent(
-      'According to the chat history and the last text from user, is user finalizing the product and asking to add this to cart or place order on it? return "cart" or "order" or "no". chat_history: ' +
-        chat_history_context
+      `According to the chat history and the last text from user, is user finalizing the product and asking to add this to cart or place order on it? return "cart" or "order" or "no". chat_history: ${chat_history_context}`
     );
     console.log("finalize:", finalize.response.text());
     if (finalize.response.text().trim() != "no" && product_search.length > 0) {
@@ -122,8 +124,7 @@ async function addVoiceMessage(req, res) {
 
     // Check and tally if user has switched the product, or is asking for a new product, if so reset the intents
     const reset_chat = await model.generateContent(
-      'According to the chat history and the last text from user, has user switched the product or asking for a new product? return "yes" or "no". chat_history: ' +
-        chat_history_context
+      `According to the chat history and the last text from user, has user switched the product or asking for a new product? return "yes" or "no". already known variables: ${prod_attributes}.\nFollowing is the chat history:\n${chat_history_context}`
     );
 
     console.log("reset_chat:", reset_chat.response.text());
@@ -133,36 +134,34 @@ async function addVoiceMessage(req, res) {
       for (let key in intents) {
         intents[key] = null;
       }
+      prod_attributes = JSON.stringify(intents);
     }
 
-    // Convert the product intent to a string
-    const prod_attributes = JSON.stringify(intents);
     // Generate content using the user request and the chat history.
-    const text_prompt = `Fill out missing variables by asking user questions one by one, avoid repeating yourself and gather information to fillout the variables, but not all at once ask it via a natural conversation, if any information couldn't be found keep it null, try to give your suggestions and recomendations from internet aswell to help user find what their looking for, if user is open to a particular option, dont ask for it repetatively. \nvariables: ${prod_attributes}.\nFollowing is the chat history:\n${chat_history_context}`;
-
-    // console.log("text_prompt:", text_prompt);
-
-    const chatbot_response = await model.generateContent(text_prompt);
+    const chatbot_response = await model.generateContent(
+      `Fill out missing variables by asking user questions one by one, avoid repeating yourself and gather information to fillout the variables, but not all at once ask it via a natural conversation, if any information couldn't be found keep it null, try to give your suggestions and recomendations from internet aswell to help user find what their looking for, if user is open to a particular option, dont ask for it repetatively. \nvariables: ${prod_attributes}.\nFollowing is the chat history:\n${chat_history_context}`
+    );
 
     console.log("chatbot:", chatbot_response.response.text());
     chat_history.push({ chatbot: chatbot_response.response.text() });
 
-    // Filling out the product attributes and provide a json response
+    // Filling out the updated product attributes and provide a json response
+    chat_history_context = fetchChatHistory(chat_history);
     const fillout = await model.generateContent(
-      `Following is the chat_history :\n${fetchChatHistory(
-        chat_history
-      )}. Fill me out the missing variables in the product attributes ${JSON.stringify(
-        intents
-      )} based on the conversation.\nProvide me the filled out product attributes in json string format, keep the missing variables as null.`
+      `Following is the chat_history :\n${chat_history_context}. Fill me out the missing variables in the product attributes ${prod_attributes} based on the conversation.\nProvide me the filled out product attributes in json string format, keep the missing variables as null.`
     );
 
     console.log("fillout:", fillout.response.text());
-    const filloutResponseText = fillout.response.text();
-    const jsonString = filloutResponseText.substring(
-      filloutResponseText.indexOf("{"),
-      filloutResponseText.lastIndexOf("}") + 1
-    );
-    intents = JSON.parse(jsonString);
+    try {
+      const filloutResponseText = fillout.response.text();
+      const jsonString = filloutResponseText.substring(
+        filloutResponseText.indexOf("{"),
+        filloutResponseText.lastIndexOf("}") + 1
+      );
+      intents = JSON.parse(jsonString);
+    } catch (error) {
+      console.log("Error parsing JSON:", error);
+    }
 
     product_search = [];
     // Now check the query in the product data if any word matches, add it to the product_search

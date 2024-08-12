@@ -90,10 +90,13 @@ async function addVoiceMessage(req, res) {
     // Convert the product intent to a string
     let prod_attributes = JSON.stringify(intents);
 
-    // Check if User is finalizing the product
-    const finalize = await model.generateContent(
-      `According to the chat history and the last text from user, is user finalizing the product and asking to add this to cart or place order on it? return "cart" or "order" or "no". chat_history: ${chat_history_context}`
-    );
+    // Promts for Gemini AI model
+    const prompt1 = `According to the chat history and the last text from user, is user finalizing the product and asking to add this to cart or place order on it? return "cart" or "order" or "no". chat_history: ${chat_history_context}`;
+    const prompt2 = `According to the chat history and the last text from user, has user switched the product or asking for a new product? return "yes" or "no". already known variables: ${prod_attributes}.\nFollowing is the chat history:\n${chat_history_context}`;
+
+    // Run the models to generate content
+    const [finalize, reset_chat] = await Promise.all([model.generateContent(prompt1), model.generateContent(prompt2)]);
+
     console.log("finalize:", finalize.response.text());
     if (finalize.response.text().trim() != "no" && product_search.length > 0) {
       // Clear chat history and intents
@@ -121,11 +124,6 @@ async function addVoiceMessage(req, res) {
       }
       return res.send(body);
     }
-
-    // Check and tally if user has switched the product, or is asking for a new product, if so reset the intents
-    const reset_chat = await model.generateContent(
-      `According to the chat history and the last text from user, has user switched the product or asking for a new product? return "yes" or "no". already known variables: ${prod_attributes}.\nFollowing is the chat history:\n${chat_history_context}`
-    );
 
     console.log("reset_chat:", reset_chat.response.text());
     if (reset_chat.response.text().trim() == "yes") {
@@ -174,6 +172,7 @@ async function addVoiceMessage(req, res) {
           const value = intents[key].toString().toLowerCase();
           // Count the number of values that match the product string
           if (prod.text.toLowerCase().includes(value)) {
+            if (key == "category") count++;
             count++;
           }
         }
